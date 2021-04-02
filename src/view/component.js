@@ -476,24 +476,23 @@ Component.prototype.fire = function (name, event) {
 Component.prototype._setup = function () {
     var me = this;
 
-    // setup 上下文
+    this._setupHooks = {};
+
     var ctx = {
         reactive: function (data) {
             extend(me.data.raw, data);
             return me.data;
         },
-        computed: function(computed) {
+        computed: function (computed) {
             extend(me.computed, computed);
         },
         watch: bind(this.watch, this)
     };
 
-    // 组合式 API 生命周期
     var lifeCycle = {
         onCreated: 'created',
         onAttached: 'attached'
     };
-    this._setupHooks = {};
     for (var name in lifeCycle) {
         ctx[name] = (function (name) {
             return function (fn) {
