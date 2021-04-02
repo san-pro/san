@@ -20,6 +20,7 @@ var TextNode = require('./text-node');
 var SlotNode = require('./slot-node');
 var ForNode = require('./for-node');
 var IfNode = require('./if-node');
+var IsNode = require('./is-node');
 var TemplateNode = require('./template-node');
 var Element = require('./element');
 
@@ -173,12 +174,11 @@ function preheatANode(aNode, componentInstance) {
                         tagName: aNode.tagName,
                         vars: aNode.vars,
                         hotspot: aNode.hotspot,
-                        directives: extend({}, aNode.directives)
+                        directives: aNode.directives
                     };
                     aNode.hotspot.hasRootNode = true;
                     aNode.Clazz = IfNode;
                     aNode = aNode.ifRinsed;
-                    aNode.directives['if'] = null; // eslint-disable-line dot-notation
                 }
 
                 if (aNode.directives['for']) { // eslint-disable-line dot-notation
@@ -189,12 +189,26 @@ function preheatANode(aNode, componentInstance) {
                         tagName: aNode.tagName,
                         vars: aNode.vars,
                         hotspot: aNode.hotspot,
-                        directives: extend({}, aNode.directives)
+                        directives: aNode.directives
                     };
                     aNode.hotspot.hasRootNode = true;
                     aNode.Clazz = ForNode;
-                    aNode.forRinsed.directives['for'] = null; // eslint-disable-line dot-notation
                     aNode = aNode.forRinsed;
+                }
+
+                if (aNode.directives.is) {
+                    aNode.isRinsed = {
+                        children: aNode.children,
+                        props: aNode.props,
+                        events: aNode.events,
+                        tagName: aNode.tagName,
+                        vars: aNode.vars,
+                        hotspot: aNode.hotspot,
+                        directives: aNode.directives
+                    };
+                    aNode.hotspot.hasRootNode = true;
+                    aNode.Clazz = IsNode;
+                    aNode = aNode.isRinsed;
                 }
 
                 switch (aNode.tagName) {
@@ -210,7 +224,7 @@ function preheatANode(aNode, componentInstance) {
 
                     default:
                         if (hotTags[aNode.tagName]) {
-                            if (!aNode.directives.is 
+                            if (!aNode.directives.is
                                 && (!componentInstance || !componentInstance.components[aNode.tagName])
                             ) {
                                 aNode.Clazz = Element;

@@ -291,9 +291,7 @@ function Component(options) { // eslint-disable-line
     // #[begin] reverse
     var reverseWalker = options.reverseWalker;
     if (this.el || reverseWalker) {
-        var RootComponentType = this.components[
-            this.aNode.directives.is ? evalExpr(this.aNode.directives.is.value, this.data) : this.aNode.tagName
-        ];
+        var RootComponentType = this.components[this.aNode.tagName];
 
         if (reverseWalker && (this.aNode.hotspot.hasRootNode || RootComponentType)) {
             this._rootNode = createReverseNode(this.aNode, this, this.data, this, reverseWalker);
@@ -453,11 +451,11 @@ Component.prototype.fire = function (name, event) {
     var me = this;
     // #[begin] devtool
     emitDevtool('comp-event', {
-        name: name, 
-        event: event, 
+        name: name,
+        event: event,
         target: this
     });
-    // #[end] 
+    // #[end]
 
     each(this.listeners[name], function (listener) {
         listener.fn.call(me, event);
@@ -520,7 +518,7 @@ Component.prototype.dispatch = function (name, value) {
             // #[begin] devtool
             emitDevtool('comp-message', {
                 target: this,
-                value: value, 
+                value: value,
                 name: name,
                 receiver: parentComponent
             });
@@ -538,7 +536,7 @@ Component.prototype.dispatch = function (name, value) {
 
     // #[begin] devtool
     emitDevtool('comp-message', {target: this, value: value, name: name});
-    // #[end]    
+    // #[end]
 };
 
 /**
@@ -934,12 +932,8 @@ Component.prototype.attach = function (parentEl, beforeEl) {
         this._toPhase('beforeAttach');
         // #[end]
 
-        var hasRootNode = this.aNode.hotspot.hasRootNode
-            || this.components[
-                this.aNode.directives.is ? evalExpr(this.aNode.directives.is.value, this.data) : this.aNode.tagName
-            ];
 
-        if (hasRootNode) {
+        if (this.aNode.hotspot.hasRootNode || this.components[this.aNode.tagName]) {
             // #[begin] devtool
             this._toPhase('beforeCreate');
             // #[end]
