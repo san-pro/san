@@ -243,6 +243,11 @@ function Component(options) { // eslint-disable-line
 
     this.data = new Data(initData);
 
+    if (proto.setup && typeof proto.setup === 'function') {
+        var ctx = this._setup();
+        extend(proto, proto.setup(ctx));
+    }
+
     this.tagName = this.tagName || 'div';
     // #[begin] allua
     // ie8- 不支持innerHTML输出自定义标签
@@ -387,6 +392,9 @@ Component.prototype._toPhase = function (name) {
         if (typeof this[name] === 'function') {
             this[name]();
         }
+        if (this._setupHooks && typeof this._setupHooks[name] === 'function') {
+            this._setupHooks[name](this);
+        }
 
         this._afterLife = this.lifeCycle;
 
@@ -443,16 +451,51 @@ Component.prototype.fire = function (name, event) {
     var me = this;
     // #[begin] devtool
     emitDevtool('comp-event', {
-        name: name, 
-        event: event, 
+        name: name,
+        event: event,
         target: this
     });
-    // #[end] 
+    // #[end]
 
     each(this.listeners[name], function (listener) {
         listener.fn.call(me, event);
     });
 };
+
+/**
+ * 组合式API
+ */
+Component.prototype._setup = function () {
+    var me = this;
+
+    // setup 上下文
+    var ctx = {
+        reactive: function (data) {
+            extend(me.data.raw, data);
+            return me.data;
+        },
+        computed: function(computed) {
+            extend(me.computed, computed);
+        },
+        watch: bind(this.watch, this)
+    };
+
+    // 组合式 API 生命周期
+    var lifeCycle = {
+        onCreated: 'created',
+        onAttached: 'attached'
+    };
+    this._setupHooks = {};
+    for (var name in lifeCycle) {
+        ctx[name] = (function (name) {
+            return function (fn) {
+                me._setupHooks[lifeCycle[name]] = fn;
+            };
+        })(name);
+    }
+
+    return ctx;
+}
 
 /**
  * 计算 computed 属性的值
@@ -467,31 +510,45 @@ Component.prototype._calcComputed = function (computedExpr) {
     }
 
     var me = this;
+
+    var watch = function (expr) {
+        // #[begin] error
+        if (!expr) {
+            throw new Error('[SAN ERROR] call get method in computed need argument');
+        }
+        // #[end]
+
+        if (!computedDeps[expr]) {
+            computedDeps[expr] = 1;
+
+            if (me.computed[expr] && !me.computedDeps[expr]) {
+                me._calcComputed(expr);
+            }
+
+            me.watch(expr, function () {
+                me._calcComputed(computedExpr);
+            });
+        }
+    }
+
+    var get = this.data.get;
+    this.data.get = function (expr) {
+        watch(expr);
+
+        return get.call(this, expr);
+    }
+
     this.data.set(computedExpr, this.computed[computedExpr].call({
         data: {
             get: function (expr) {
-                // #[begin] error
-                if (!expr) {
-                    throw new Error('[SAN ERROR] call get method in computed need argument');
-                }
-                // #[end]
-
-                if (!computedDeps[expr]) {
-                    computedDeps[expr] = 1;
-
-                    if (me.computed[expr] && !me.computedDeps[expr]) {
-                        me._calcComputed(expr);
-                    }
-
-                    me.watch(expr, function () {
-                        me._calcComputed(computedExpr);
-                    });
-                }
+                watch(expr);
 
                 return me.data.get(expr);
             }
         }
     }));
+
+    this.data.get = get;
 };
 
 /**
@@ -510,7 +567,7 @@ Component.prototype.dispatch = function (name, value) {
             // #[begin] devtool
             emitDevtool('comp-message', {
                 target: this,
-                value: value, 
+                value: value,
                 name: name,
                 receiver: parentComponent
             });
@@ -528,7 +585,7 @@ Component.prototype.dispatch = function (name, value) {
 
     // #[begin] devtool
     emitDevtool('comp-message', {target: this, value: value, name: name});
-    // #[end]    
+    // #[end]
 };
 
 /**
