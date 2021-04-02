@@ -7,6 +7,7 @@
  * @file 创建节点的工厂方法
  */
 
+var evalExpr = require('../runtime/eval-expr');
 var Element = require('./element');
 var AsyncComponent = require('./async-component');
 
@@ -20,14 +21,12 @@ var AsyncComponent = require('./async-component');
  * @param {Component} owner 所属组件环境
  * @return {Node}
  */
-function createNode(aNode, parent, scope, owner) {
+function createNode(aNode, parent, scope, owner, componentName) {
     if (aNode.Clazz) {
         return new aNode.Clazz(aNode, parent, scope, owner);
     }
 
-    var ComponentOrLoader = owner.getComponentType
-        ? owner.getComponentType(aNode, scope)
-        : owner.components[aNode.tagName];
+    var ComponentOrLoader = owner.components[componentName || aNode.tagName];
 
     if (ComponentOrLoader) {
         return typeof ComponentOrLoader === 'function'

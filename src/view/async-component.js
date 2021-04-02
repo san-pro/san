@@ -73,6 +73,11 @@ AsyncComponent.prototype.attach = function (parentEl, beforeEl) {
     });
 };
 
+AsyncComponent.prototype._getElAsRootNode = function () {
+    var child = this.children[0];
+    return child && child.el;
+};
+
 
 /**
  * loader加载完成，渲染组件
@@ -84,16 +89,27 @@ AsyncComponent.prototype.onload = function (ComponentClass) {
         var component = new ComponentClass(this.options);
         component.attach(this.el.parentNode, this.el);
 
-        var parentChildren = this.options.parent.children;
-        if (this.parentIndex == null || parentChildren[this.parentIndex] !== this) {
-            each(parentChildren, function (child, index) {
-                if (child instanceof AsyncComponent) {
-                    child.parentIndex = index;
-                }
-            });
-        }
+        var parent = this.options.parent;
 
-        parentChildren[this.parentIndex] = component;
+        if (parent._rootNode === this) {
+            // 如果异步组件为 root 节点，直接更新
+            parent._rootNode = component;
+            component._getElAsRootNode && (parent.el = component._getElAsRootNode());
+        } else {
+            // 在 children 中查找
+            var parentChildren = parent.children;
+
+            // children 中存在多个 AsyncComponent 时，只循环一遍，为所有 AsyncComponent 的 parentIndex 赋值
+            if (this.parentIndex == null || parentChildren[this.parentIndex] !== this) {
+                each(parentChildren, function (child, index) {
+                    if (child instanceof AsyncComponent) {
+                        child.parentIndex = index;
+                    }
+                });
+            }
+
+            parentChildren[this.parentIndex] = component;
+        }
     }
 
     this.dispose();
