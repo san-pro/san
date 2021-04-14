@@ -44,6 +44,8 @@ var elementOwnDetach = require('./element-own-detach');
 var elementOwnDispose = require('./element-own-dispose');
 var warnEventListenMethod = require('./warn-event-listen-method');
 var elementDisposeChildren = require('./element-dispose-children');
+var componentSetupHooks = require('./component-setup-hooks');
+var ComponentSetup = require('./component-setup');
 var createDataTypesChecker = require('../util/create-data-types-checker');
 var warn = require('../util/warn');
 
@@ -400,9 +402,6 @@ Component.prototype._toPhase = function (name) {
         if (typeof this[name] === 'function') {
             this[name]();
         }
-        if (this._setupHooks && typeof this._setupHooks[name] === 'function') {
-            this._setupHooks[name](this);
-        }
 
         this._afterLife = this.lifeCycle;
 
@@ -471,37 +470,38 @@ Component.prototype.fire = function (name, event) {
 };
 
 /**
- * 组合式API
+ * 组合式 API
  */
 Component.prototype._setup = function () {
     var me = this;
 
-    this._setupHooks = {};
-
-    var ctx = {
-        reactive: function (data) {
-            extend(me.data.raw, data);
-            return me.data;
-        },
-        computed: function (computed) {
-            extend(me.computed, computed);
-        },
-        watch: bind(this.watch, this)
-    };
-
-    var lifeCycle = {
-        onCreated: 'created',
-        onAttached: 'attached'
-    };
-    for (var name in lifeCycle) {
-        ctx[name] = (function (name) {
-            return function (fn) {
-                me._setupHooks[lifeCycle[name]] = fn;
-            };
-        })(name);
+    function reactive (data) {
+        extend(me.data.raw, data);
+        return me.data;
+    }
+    function computed (computed) {
+        extend(me.computed, computed);
+    }
+    function watch (dataName, listener) {
+        me.watch(dataName, listener);
     }
 
-    return ctx;
+    var setup = componentSetupHooks();
+
+    var toPhase = this._toPhase;
+    this._toPhase = function (name) {
+        toPhase.call(me, name);
+
+        if (typeof setup.setupHooks[name] === 'function') {
+            setup.setupHooks[name](me);
+        }
+    }
+
+    return extend({
+        reactive: reactive,
+        computed: computed,
+        watch: watch
+    }, setup.ctx);
 }
 
 /**
