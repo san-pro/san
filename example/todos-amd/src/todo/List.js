@@ -11,7 +11,9 @@ define(function (require) {
         },
 
         components: {
-            'router-link': require('san-router').Link
+            'router-link': require('san-router').Link,
+            'num-counter': require('../ui/NumCounter'),
+            'num-counter-newer': require('../ui/NumCounterNewer')
         },
 
         route: function () {

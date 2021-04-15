@@ -38,14 +38,14 @@ var reverseElementChildren = require('./reverse-element-children');
 var NodeType = require('./node-type');
 var nodeSBindInit = require('./node-s-bind-init');
 var nodeSBindUpdate = require('./node-s-bind-update');
+var elementOwnSetup = require('./element-own-setup');
 var elementOwnAttached = require('./element-own-attached');
 var elementOwnOnEl = require('./element-own-on-el');
 var elementOwnDetach = require('./element-own-detach');
 var elementOwnDispose = require('./element-own-dispose');
 var warnEventListenMethod = require('./warn-event-listen-method');
 var elementDisposeChildren = require('./element-dispose-children');
-var componentSetupHooks = require('./component-setup-hooks');
-var ComponentSetup = require('./component-setup');
+var ComponentSetupContext = require('./component-setup-context');
 var createDataTypesChecker = require('../util/create-data-types-checker');
 var warn = require('../util/warn');
 
@@ -256,8 +256,9 @@ function Component(options) { // eslint-disable-line
     this.data = new Data(initData);
 
     if (proto.setup && typeof proto.setup === 'function') {
-        var ctx = this._setup();
-        extend(proto, proto.setup(ctx));
+        // var context = new ComponentSetupContext(this);
+        var context = this._setup();
+        extend(proto, proto.setup(context));
     }
 
     this.tagName = this.tagName || 'div';
@@ -472,37 +473,42 @@ Component.prototype.fire = function (name, event) {
 /**
  * 组合式 API
  */
-Component.prototype._setup = function () {
-    var me = this;
+// Component.prototype._setup = function () {
+//     return new SetupComponent(this);
+// }
 
-    function reactive (data) {
-        extend(me.data.raw, data);
-        return me.data;
-    }
-    function computed (computed) {
-        extend(me.computed, computed);
-    }
-    function watch (dataName, listener) {
-        me.watch(dataName, listener);
-    }
+// Component.prototype._setup = function () {
+//     var me = this;
 
-    var setup = componentSetupHooks();
+//     function reactive (data) {
+//         extend(me.data.raw, data);
+//         return me.data;
+//     }
+//     function computed (computed) {
+//         extend(me.computed, computed);
+//     }
+//     function watch (dataName, listener) {
+//         me.watch(dataName, listener);
+//     }
 
-    var toPhase = this._toPhase;
-    this._toPhase = function (name) {
-        toPhase.call(me, name);
+//     var setup = new ComponentSetup();
+//     // var setup = componentSetupHooks();
 
-        if (typeof setup.setupHooks[name] === 'function') {
-            setup.setupHooks[name](me);
-        }
-    }
+//     var toPhase = this._toPhase;
+//     this._toPhase = function (name) {
+//         toPhase.call(me, name);
 
-    return extend({
-        reactive: reactive,
-        computed: computed,
-        watch: watch
-    }, setup.ctx);
-}
+//         if (typeof setup.hooks[name] === 'function') {
+//             setup.hooks[name](me);
+//         }
+//     }
+
+//     return extend({
+//         reactive: reactive,
+//         computed: computed,
+//         watch: watch
+//     }, setup.ctx);
+// }
 
 /**
  * 计算 computed 属性的值
@@ -1067,6 +1073,7 @@ Component.prototype.attach = function (parentEl, beforeEl) {
     }
 };
 
+Component.prototype._setup = elementOwnSetup;
 Component.prototype.detach = elementOwnDetach;
 Component.prototype.dispose = elementOwnDispose;
 Component.prototype._onEl = elementOwnOnEl;
