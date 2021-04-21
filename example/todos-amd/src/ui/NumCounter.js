@@ -1,5 +1,7 @@
 define(function (require) {
+    // var san = require('san');
     var san = require('san');
+    // var san, {reactive, watch, computed, onAttached, onCreated} = require('san');
 
     return san.defineComponent({
         template: `
@@ -14,7 +16,6 @@ define(function (require) {
         `,
 
         setup(ctx) {
-            // const {reactive, watch, computed} = ctx;
             const {reactive, watch, computed, onAttached, onCreated} = ctx;
             const data = reactive({
                 count: 1,

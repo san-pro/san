@@ -45,7 +45,7 @@ var elementOwnDetach = require('./element-own-detach');
 var elementOwnDispose = require('./element-own-dispose');
 var warnEventListenMethod = require('./warn-event-listen-method');
 var elementDisposeChildren = require('./element-dispose-children');
-var ComponentSetupContext = require('./component-setup-context');
+var SetupComponent = require('./setup-component');
 var createDataTypesChecker = require('../util/create-data-types-checker');
 var warn = require('../util/warn');
 
@@ -473,9 +473,9 @@ Component.prototype.fire = function (name, event) {
 /**
  * 组合式 API
  */
-// Component.prototype._setup = function () {
-//     return new SetupComponent(this);
-// }
+Component.prototype._setup = function () {
+    return new SetupComponent(this);
+}
 
 // Component.prototype._setup = function () {
 //     var me = this;
@@ -1073,7 +1073,7 @@ Component.prototype.attach = function (parentEl, beforeEl) {
     }
 };
 
-Component.prototype._setup = elementOwnSetup;
+// Component.prototype._setup = elementOwnSetup;
 Component.prototype.detach = elementOwnDetach;
 Component.prototype.dispose = elementOwnDispose;
 Component.prototype._onEl = elementOwnOnEl;

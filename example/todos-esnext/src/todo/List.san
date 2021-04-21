@@ -1,6 +1,7 @@
 <template>
 <div class="todos">
     <router-link to="/add" class="todo-add"><i class="fa fa-plus-square"></i></router-link>
+    <num-counter />
     <ul class="filter-category">
         <li
             s-for="item in categories"
@@ -37,10 +38,12 @@
 import service from '../service'
 import { formatDate } from '../filters'
 import { Link } from 'san-router'
+import NumCounter from '../ui/NumCounter'
 
 export default {
     components: {
-        'router-link': Link
+        'router-link': Link,
+        'num-counter': NumCounter
     },
 
     filters: {
