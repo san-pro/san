@@ -16,7 +16,6 @@ var emitDevtool = require('../util/emit-devtool');
 var ExprType = require('../parser/expr-type');
 var parseExpr = require('../parser/parse-expr');
 var parseTemplate = require('../parser/parse-template');
-var createAccessor = require('../parser/create-accessor');
 var unpackANode = require('../parser/unpack-anode');
 var removeEl = require('../browser/remove-el');
 var Data = require('../runtime/data');
@@ -70,8 +69,13 @@ function Component(options) { // eslint-disable-line
 
 
     options = options || {};
-
     this.lifeCycle = LifeCycle.start;
+    this.id = guid++;
+
+    if (typeof this.construct === 'function') {
+        this.construct(options);
+    }
+
     this.children = [];
     this._elFns = [];
     this.listeners = {};
@@ -88,8 +92,25 @@ function Component(options) { // eslint-disable-line
         this.transition = options.transition;
     }
 
+    this.owner = options.owner;
+    this.scope = options.scope;
+    this.el = options.el;
+    var parent = options.parent;
+    if (parent) {
+        this.parent = parent;
+        this.parentComponent = parent.nodeType === NodeType.CMPT
+            ? parent
+            : parent && parent.parentComponent;
+    }
+    else if (this.owner) {
+        this.parentComponent = this.owner;
+        this.scope = this.owner.data;
+    }
 
-    this.id = guid++;
+    this.sourceSlotNameProps = [];
+    this.sourceSlots = {
+        named: {}
+    };
 
     // #[begin] devtool
     this._toPhase('beforeCompile');
@@ -137,28 +158,6 @@ function Component(options) { // eslint-disable-line
 
     preheatANode(this.source);
 
-
-
-    this.sourceSlotNameProps = [];
-    this.sourceSlots = {
-        named: {}
-    };
-
-    this.owner = options.owner;
-    this.scope = options.scope;
-    this.el = options.el;
-
-    var parent = options.parent;
-    if (parent) {
-        this.parent = parent;
-        this.parentComponent = parent.nodeType === NodeType.CMPT
-            ? parent
-            : parent && parent.parentComponent;
-    }
-    else if (this.owner) {
-        this.parentComponent = this.owner;
-        this.scope = this.owner.data;
-    }
 
     // #[begin] reverse
     // 组件反解，读取注入的组件数据
@@ -396,7 +395,6 @@ Component.prototype._ctx = (new Date()).getTime().toString(16);
  * @protected
  * @param {string} name 生命周期名称
  */
-Component.prototype._callHook =
 Component.prototype._toPhase = function (name) {
     if (!this.lifeCycle[name]) {
         this.lifeCycle = LifeCycle[name] || this.lifeCycle;
@@ -746,14 +744,15 @@ Component.prototype._update = function (changes) {
                     && (relation = changeExprCompare(changeExpr, updateExpr, me.scope))
                 ) {
                     if (relation > 2) {
-                        setExpr = createAccessor(
-                            [
+                        setExpr = {
+                            type: ExprType.ACCESSOR,
+                            paths: [
                                 {
                                     type: ExprType.STRING,
                                     value: setExpr
                                 }
                             ].concat(changeExpr.paths.slice(updateExpr.paths.length))
-                        );
+                        };
                         updateExpr = changeExpr;
                     }
 
@@ -857,7 +856,9 @@ Component.prototype._update = function (changes) {
             this.implicitChildren[i]._update(dataChanges);
         }
 
-        this._toPhase('updated');
+        if (typeof this.updated === 'function') {
+            this.updated();
+        }
 
         if (this.owner && this._updateBindxOwner(dataChanges)) {
             this.owner._update();
@@ -880,9 +881,10 @@ Component.prototype._updateBindxOwner = function (dataChanges) {
             ) {
                 var updateScopeExpr = bindItem.expr;
                 if (changeExpr.paths.length > 1) {
-                    updateScopeExpr = createAccessor(
-                        bindItem.expr.paths.concat(changeExpr.paths.slice(1))
-                    );
+                    updateScopeExpr = {
+                        type: ExprType.ACCESSOR,
+                        paths: bindItem.expr.paths.concat(changeExpr.paths.slice(1))
+                    };
                 }
 
                 xbindUped = 1;

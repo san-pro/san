@@ -26,11 +26,13 @@ describe("Component", function () {
     });
 
     it("life cycle", function () {
+        var mainConstruct = 0;
         var mainInited = 0;
         var mainCreated = 0;
         var mainAttached = 0;
         var mainDetached = 0;
         var mainDisposed = 0;
+        var labelConstruct = 0;
         var labelInited = 0;
         var labelCreated = 0;
         var labelAttached = 0;
@@ -39,6 +41,10 @@ describe("Component", function () {
 
         var Label = san.defineComponent({
             template: '<span title="{{text}}">{{text}}</span>',
+
+            construct: function () {
+                labelConstruct++;
+            },
 
             inited: function () {
                 labelInited++;
@@ -69,6 +75,10 @@ describe("Component", function () {
             },
             template: '<div title="{{color}}"><ui-label text="{{color}}"/>{{color}}</div>',
 
+            construct: function () {
+                mainConstruct++;
+            },
+
             inited: function () {
                 mainInited++;
             },
@@ -96,9 +106,11 @@ describe("Component", function () {
         expect(myComponent.lifeCycle.is('inited')).toBeTruthy();
         expect(myComponent.lifeCycle.is('created')).toBeFalsy();
         expect(myComponent.lifeCycle.is('attached')).toBeFalsy();
+        expect(mainConstruct).toBe(1);
         expect(mainInited).toBe(1);
         expect(mainCreated).toBe(0);
         expect(mainAttached).toBe(0);
+        expect(labelConstruct).toBe(0);
         expect(labelInited).toBe(0);
 
         myComponent.data.set('color', 'green');
@@ -109,10 +121,13 @@ describe("Component", function () {
         expect(myComponent.lifeCycle.is('inited')).toBeTruthy();
         expect(myComponent.lifeCycle.is('created')).toBeTruthy();
         expect(myComponent.lifeCycle.is('attached')).toBeTruthy();
+        expect(mainConstruct).toBe(1);
         expect(mainInited).toBe(1);
         expect(mainCreated).toBe(1);
         expect(mainAttached).toBe(1);
         expect(mainDetached).toBe(0);
+
+        expect(labelConstruct).toBe(1);
         expect(labelInited).toBe(1);
         expect(labelCreated).toBe(1);
         expect(labelAttached).toBe(1);
@@ -232,6 +247,39 @@ describe("Component", function () {
         myComponent.dispose();
         document.body.removeChild(wrap);
         expect(phases.detached).toBeTruthy();
+    });
+
+    it("life cycle construct", function () {
+        var MyComponent = san.defineComponent({
+            template: '<a><span title="{{email}}">{{name}}</span></a>',
+
+            construct: function (options) {
+                expect(options.from).toBe('err');
+                expect(typeof this.template).toBe('string');
+                expect(this.data).toBeUndefined();
+                expect(this.scope).toBeUndefined();
+                expect(this.owner).toBeUndefined();
+            }
+        });
+
+        var myComponent = new MyComponent({
+            from: 'err',
+            data: {
+                'email': 'errorrik@gmail.com',
+                'name': 'errorrik'
+            }
+        });
+
+
+        var wrap = document.createElement('div');
+        document.body.appendChild(wrap);
+        myComponent.attach(wrap);
+
+        var span = wrap.getElementsByTagName('span')[0];
+        expect(span.innerHTML.indexOf('errorrik')).toBe(0);
+        myComponent.dispose();
+        document.body.removeChild(wrap);
+
     });
 
     it("life cycle updated", function (done) {
@@ -711,7 +759,7 @@ describe("Component", function () {
     it("components use s-is", function () {
         var Label = san.defineComponent({
             template: '<span title="{{text}}">{{text}}</span>',
-            initData() {
+            initData: function () {
                 return {
                     text: 'erik'
                 }
@@ -722,7 +770,7 @@ describe("Component", function () {
             components: {
                 'x-label': Label,
             },
-            initData() {
+            initData: function () {
                 return {
                     cmpt: 'x-label'
                 }
@@ -747,7 +795,7 @@ describe("Component", function () {
     it("s-is value update", function (done) {
         var Label = san.defineComponent({
             template: '<span title="{{text}}" >{{text}}</span>',
-            initData() {
+            initData: function () {
                 return {
                     text: 'erik'
                 }
@@ -756,7 +804,7 @@ describe("Component", function () {
 
         var H2 = san.defineComponent({
             template: '<h2>{{text}}.baidu</h2>',
-            initData() {
+            initData: function () {
                 return {
                     text: 'erik'
                 }
@@ -768,7 +816,7 @@ describe("Component", function () {
                 'x-label': Label,
                 'x-h2': H2
             },
-            initData() {
+            initData: function () {
                 return {
                     cmpt: 'x-label'
                 }
@@ -794,6 +842,111 @@ describe("Component", function () {
             myComponent.dispose();
             document.body.removeChild(wrap);
             done();
+        });
+    });
+
+    it("s-is component which fragment rooted", function (done) {
+        var Frag = san.defineComponent({
+            template: '<fragment><b>icon</b><slot></slot></fragment>'
+        });
+
+        var U = san.defineComponent({
+            template: '<u><slot/></u>'
+        });
+
+        var MyComponent = san.defineComponent({
+            components: {
+                'x-f': Frag,
+                'x-u': U
+            },
+            initData: function () {
+                return {
+                    cmpt: 'x-f'
+                }
+            },
+            template:'<p><test s-is="cmpt">erik</test></p>'
+        });
+
+
+        var myComponent = new MyComponent();
+
+        var wrap = document.createElement('div');
+        document.body.appendChild(wrap);
+        myComponent.attach(wrap);
+
+        var p = wrap.getElementsByTagName('p')[0];
+        expect(p.getElementsByTagName('b').length).toBe(1);
+        expect(p.getElementsByTagName('u').length).toBe(0);
+        expect(p.innerHTML).toContain('erik');
+
+        myComponent.data.set('cmpt', 'x-u');
+        san.nextTick(function () {
+            expect(p.getElementsByTagName('b').length).toBe(0);
+            expect(p.getElementsByTagName('u').length).toBe(1);
+            expect(p.getElementsByTagName('u')[0].innerHTML).toContain('erik');
+
+            myComponent.dispose();
+            document.body.removeChild(wrap);
+            done();
+        });
+    });
+
+    it("s-is for html element and component", function (done) {
+        var Label = san.defineComponent({
+            template: '<b><slot/></b>'
+        });
+
+        var MyComponent = san.defineComponent({
+            components: {
+                'x-label': Label
+            },
+            initData: function () {
+                return {
+                    cmpt: 'h1',
+                    text: 'hello'
+                }
+            },
+            template: '<div><span s-is="cmpt" id="comp">{{text}}</span></div>'
+        });
+
+
+        var myComponent = new MyComponent();
+
+        var wrap = document.createElement('div');
+        document.body.appendChild(wrap);
+        myComponent.attach(wrap);
+
+        var el = wrap.getElementsByTagName('div')[0].firstChild;
+        expect(el.id).toBe('comp');
+        expect(el.tagName).toBe('H1');
+        expect(el.innerHTML).toContain('hello');
+
+        myComponent.data.set('cmpt', '');
+        myComponent.nextTick(function () {
+            var el = wrap.getElementsByTagName('div')[0].firstChild;
+            expect(el.id).toBe('comp');
+            expect(el.tagName).toBe('SPAN');
+            expect(el.innerHTML).toContain('hello');
+
+            myComponent.data.set('cmpt', 'x-label');
+            san.nextTick(function () {
+                var el = wrap.getElementsByTagName('div')[0].firstChild;
+                expect(el.id).toBe('comp');
+                expect(el.tagName).toBe('B');
+                expect(el.innerHTML).toContain('hello');
+
+                myComponent.data.set('cmpt', 'u');
+                san.nextTick(function () {
+                    var el = wrap.getElementsByTagName('div')[0].firstChild;
+                    expect(el.id).toBe('comp');
+                    expect(el.tagName).toBe('U');
+                    expect(el.innerHTML).toContain('hello');
+
+                    myComponent.dispose();
+                    document.body.removeChild(wrap);
+                    done();
+                });
+            });
         });
     });
 
@@ -5423,7 +5576,7 @@ describe("Component", function () {
         });
 
         var Parent = san.defineComponent({
-            template: '<test s-is="cmpt"></test>',
+            template: '<test s-is="cmpt">content</test>',
             components: {
                 'x-child-a': ChildA,
                 'x-child-b': ChildB
@@ -5457,11 +5610,105 @@ describe("Component", function () {
             expect(children.length).toBe(1);
             expect(children[0].innerHTML).toBe('varsha');
 
-            myComponent.dispose();
-            document.body.removeChild(wrap);
-            done();
+            myComponent.data.set('cmpt', 'h6');
+            myComponent.nextTick(function () {
+                var children = myComponent.el.getElementsByTagName('H6');
+                expect(children.length).toBe(1);
+                expect(children[0].innerHTML).toBe('content');
+
+                myComponent.dispose();
+                document.body.removeChild(wrap);
+                done();
+            });
         });
     });
+
+    it("s-is valued fragment", function (done) {
+        var Child = san.defineComponent({
+            template: '<h2><slot>default</slot></h2>'
+        });
+
+        var MyComponent = san.defineComponent({
+            template: '<div><x-child s-is="cmpt">cxtom</x-child></div>',
+            components: {
+                'x-child': Child
+            }
+        });
+
+        var myComponent = new MyComponent({
+            data: {
+                cmpt: ''
+            }
+        });
+
+        var wrap = document.createElement('div');
+        document.body.appendChild(wrap);
+        myComponent.attach(wrap);
+
+        expect(myComponent.el.firstChild.tagName).toBe('H2');
+        expect(myComponent.el.firstChild.innerHTML).toContain('cxtom');
+
+        myComponent.data.set('cmpt', 'fragment');
+        myComponent.nextTick(function () {
+            expect(myComponent.el.innerHTML).toContain('cxtom');
+            expect(myComponent.el.innerHTML).not.toContain('fragment');
+
+            myComponent.data.set('cmpt', 'h3');
+            myComponent.nextTick(function () {
+                expect(myComponent.el.firstChild.tagName).toBe('H3');
+                expect(myComponent.el.firstChild.innerHTML).toContain('cxtom');
+
+                myComponent.dispose();
+                document.body.removeChild(wrap);
+                done();
+            });
+        });
+    });
+
+    it("s-is as component root", function (done) {
+        var Child = san.defineComponent({
+            template: '<h2><slot>default</slot></h2>'
+        });
+
+        var MyComponent = san.defineComponent({
+            template: '<div s-is="type">{{name}}</div>',
+            components: {
+                'x-child': Child
+            }
+        });
+
+        var myComponent = new MyComponent({
+            data: {
+                type: 'x-child',
+                name: 'cxtom'
+            }
+        });
+
+        var wrap = document.createElement('div');
+        document.body.appendChild(wrap);
+        myComponent.attach(wrap);
+
+        expect(wrap.firstChild.tagName).toBe('H2');
+        expect(wrap.firstChild.innerHTML).toContain('cxtom');
+
+        myComponent.data.set('type', 'h3');
+        myComponent.nextTick(function () {
+            
+            expect(wrap.firstChild.tagName).toBe('H3');
+            expect(wrap.firstChild.innerHTML).toContain('cxtom');
+
+            myComponent.data.set('name', 'erik');
+            myComponent.nextTick(function () {
+                expect(wrap.firstChild.tagName).toBe('H3');
+                expect(wrap.firstChild.innerHTML).toContain('erik');
+
+                myComponent.dispose();
+                document.body.removeChild(wrap);
+                done();
+            });
+        });
+    });
+
 
     it("component as component root, check el", function () {
         var SubChild = san.defineComponent({

@@ -66,6 +66,7 @@ function preheatANode(aNode, componentInstance) {
                 var sourceNode;
                 if (isBrowser && aNode.tagName
                     && aNode.tagName.indexOf('-') < 0
+                    && !aNode.directives.is
                     && !/^(template|slot|select|input|option|button|video|audio|canvas|img|embed|object|iframe)$/i.test(aNode.tagName)
                 ) {
                     sourceNode = createEl(aNode.tagName);
@@ -223,11 +224,9 @@ function preheatANode(aNode, componentInstance) {
                         break;
 
                     default:
-                        if (hotTags[aNode.tagName]) {
-                            if (!aNode.directives.is
-                                && (!componentInstance || !componentInstance.components[aNode.tagName])
-                            ) {
-                                aNode.Clazz = Element;
+                        if (!aNode.directives.is && hotTags[aNode.tagName]) {
+                            if (!componentInstance || !componentInstance.components[aNode.tagName]) {
+                                aNode.elem = true;
                             }
 
                             // #[begin] error

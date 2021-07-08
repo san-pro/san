@@ -12,7 +12,6 @@ var each = require('../util/each');
 var guid = require('../util/guid');
 var ExprType = require('../parser/expr-type');
 var parseExpr = require('../parser/parse-expr');
-var createAccessor = require('../parser/create-accessor');
 var Data = require('../runtime/data');
 var DataChangeType = require('../runtime/data-change-type');
 var changeExprCompare = require('../runtime/change-expr-compare');
@@ -55,41 +54,57 @@ function ForItemData(forElement, item, index) {
  * @return {Object}
  */
 ForItemData.prototype.exprResolve = function (expr) {
-    var me = this;
     var directive = this.directive;
 
-    function resolveItem(expr) {
-        if (expr.type === ExprType.ACCESSOR && expr.paths[0].value === directive.item) {
-            return createAccessor(
-                directive.value.paths.concat(
-                    {
-                        type: ExprType.NUMBER,
-                        value: me.raw[me.indexName]
-                    },
-                    expr.paths.slice(1)
-                )
-            );
-        }
-
-        return expr;
+    if (expr.type === ExprType.ACCESSOR && expr.paths[0].value === directive.item) {
+        expr = {
+            type: ExprType.ACCESSOR,
+            paths: directive.value.paths.concat(
+                {
+                    type: ExprType.NUMBER,
+                    value: this.raw[this.indexName]
+                },
+                expr.paths.slice(1)
+            )
+        };
     }
-
-    expr = resolveItem(expr);
 
     var resolvedPaths = [];
 
-    each(expr.paths, function (item) {
-        resolvedPaths.push(
-            item.type === ExprType.ACCESSOR && item.paths[0].value === me.indexName
-                ? {
-                    type: ExprType.NUMBER,
-                    value: me.raw[me.indexName]
-                }
-                : resolveItem(item)
-        );
-    });
+    for (var i = 0, l = expr.paths.length; i < l; i++) {
+        var pathSeg = expr.paths[i];
 
-    return createAccessor(resolvedPaths);
+        if (pathSeg.type === ExprType.ACCESSOR) {
+            switch (pathSeg.paths[0].value) {
+                case directive.item:
+                    pathSeg = {
+                        type: ExprType.ACCESSOR,
+                        paths: directive.value.paths.concat(
+                            {
+                                type: ExprType.NUMBER,
+                                value: this.raw[this.indexName]
+                            },
+                            pathSeg.paths.slice(1)
+                        )
+                    };
+                    break;
+                   
+                case this.indexName:
+                    pathSeg = {
+                        type: ExprType.NUMBER,
+                        value: this.raw[this.indexName]
+                    };
+                    break;
+            }
+        }
+
+        resolvedPaths.push(pathSeg);
+    }
+
+    return {
+        type: ExprType.ACCESSOR,
+        paths: resolvedPaths
+    };
 };
 
 // 代理数据操作方法
@@ -147,10 +162,13 @@ function ForNode(aNode, parent, scope, owner, reverseWalker) {
     };
 
     if (this.param.index) {
-        this.indexExpr = createAccessor([{
-            type: ExprType.STRING,
-            value: '' + this.param.index
-        }]);
+        this.indexExpr = {
+            type: ExprType.ACCESSOR,
+            paths: [{
+                type: ExprType.STRING,
+                value: '' + this.param.index
+            }]
+        };
     }
 
 
@@ -420,9 +438,10 @@ ForNode.prototype._updateArray = function (changes, newList) {
                     change = change.type === DataChangeType.SET
                         ? {
                             type: change.type,
-                            expr: createAccessor(
-                                this.itemPaths.concat(changePaths.slice(forLen + 1))
-                            ),
+                            expr: {
+                                type: ExprType.ACCESSOR,
+                                paths: this.itemPaths.concat(changePaths.slice(forLen + 1))
+                            },
                             value: change.value,
                             option: change.option
                         }
@@ -431,9 +450,10 @@ ForNode.prototype._updateArray = function (changes, newList) {
                             deleteCount: change.deleteCount,
                             insertions: change.insertions,
                             type: change.type,
-                            expr: createAccessor(
-                                this.itemPaths.concat(changePaths.slice(forLen + 1))
-                            ),
+                            expr: {
+                                type: ExprType.ACCESSOR,
+                                paths: this.itemPaths.concat(changePaths.slice(forLen + 1))
+                            },
                             value: change.value,
                             option: change.option
                         };
@@ -811,12 +831,13 @@ ForNode.prototype._updateArray = function (changes, newList) {
         var lengthChange = {
             type: DataChangeType.SET,
             option: {},
-            expr: createAccessor(
-                this.param.value.paths.concat({
+            expr: {
+                type: ExprType.ACCESSOR,
+                paths: this.param.value.paths.concat({
                     type: ExprType.STRING,
                     value: 'length'
                 })
-            )
+            }
         };
 
         if (changesIsInDataRef([lengthChange], this.aNode.hotspot.data)) {

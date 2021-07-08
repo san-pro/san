@@ -8,24 +8,11 @@
  */
 
 var Walker = require('./walker');
+var readTertiaryExpr = require('./read-tertiary-expr');
 var ExprType = require('./expr-type');
-var parseInterp = require('./parse-interp');
+var readCall = require('./read-call');
 var decodeHTMLEntity = require('../util/decode-html-entity');
 
-/**
- * 对字符串进行可用于new RegExp的字面化
- *
- * @inner
- * @param {string} source 需要字面化的字符串
- * @return {string} 字符串字面化结果
- */
-function regexpLiteral(source) {
-    return source.replace(/[\^\[\]\$\(\)\{\}\?\*\.\+\\]/g, function (c) {
-        return '\\' + c;
-    });
-}
-
-var delimRegCache = {};
 
 /**
  * 解析文本
@@ -37,56 +24,69 @@ var delimRegCache = {};
 function parseText(source, delimiters) {
     delimiters = delimiters || ['{{', '}}'];
 
-    var regCacheKey = delimiters[0] + '>..<' + delimiters[1];
-    var exprStartReg = delimRegCache[regCacheKey];
-    if (!exprStartReg) {
-        exprStartReg = new RegExp(
-            regexpLiteral(delimiters[0])
-                + '\\s*([\\s\\S]+?)\\s*'
-                + regexpLiteral(delimiters[1]),
-            'g'
-        );
-        delimRegCache[regCacheKey] = exprStartReg;
-    }
-
-    var exprMatch;
-
     var walker = new Walker(source);
     var beforeIndex = 0;
 
     var segs = [];
     var original;
-    
-    function pushStringToSeg(text) {
-        text && segs.push({
-            type: ExprType.STRING,
-            value: decodeHTMLEntity(text)
-        });
-    }
 
-    var delimEndLen = delimiters[1].length;
-    while ((exprMatch = walker.match(exprStartReg)) != null) {
-        var interpSource = exprMatch[1];
-        var interpLen = exprMatch[0].length;
-        if (walker.cut(walker.index + 1 - delimEndLen, walker.index + 1) === delimiters[1]) {
-            interpSource += walker.cut(walker.index, walker.index + 1);
-            walker.go(1);
-            interpLen++;
+    var delimStart = delimiters[0];
+    var delimStartLen = delimStart.length;
+    var delimEnd = delimiters[1];
+    var delimEndLen = delimEnd.length;
+    while (1) {
+        var delimStartIndex = walker.source.indexOf(delimStart, walker.index);
+        var delimEndIndex = walker.source.indexOf(delimEnd, walker.index);
+        if (delimStartIndex === -1 || delimEndIndex < delimStartIndex) {
+            break;
         }
 
-        pushStringToSeg(walker.cut(
+        // pushStringToSeg
+        var strValue = walker.source.slice(
             beforeIndex,
-            walker.index - interpLen
-        ));
+            delimStartIndex
+        );
+        strValue && segs.push({
+            type: ExprType.STRING,
+            value: decodeHTMLEntity(strValue)
+        });
 
-        var interp = parseInterp(interpSource);
+        // pushInterpToSeg
+        if (walker.source.indexOf(delimEnd, delimEndIndex + 1) === delimEndIndex + 1) {
+            delimEndIndex++;
+        }
+
+        var interpWalker = new Walker(walker.source.slice(delimStartIndex + delimStartLen, delimEndIndex));
+        var interp = {
+            type: ExprType.INTERP,
+            expr: readTertiaryExpr(interpWalker),
+            filters: []
+        };
+        while (interpWalker.goUntil(124)) { // |
+            var callExpr = readCall(interpWalker, []);
+            switch (callExpr.name.paths[0].value) {
+                case 'html':
+                    break;
+                case 'raw':
+                    interp.original = 1;
+                    break;
+                default:
+                    interp.filters.push(callExpr);
+            }
+        }
+
         original = original || interp.original;
         segs.push(interp);
 
-        beforeIndex = walker.index;
+        beforeIndex = walker.index = delimEndIndex + delimEndLen;
     }
 
-    pushStringToSeg(walker.cut(beforeIndex));
+    // pushStringToSeg
+    var strValue = walker.source.slice(beforeIndex);
+    strValue && segs.push({
+        type: ExprType.STRING,
+        value: decodeHTMLEntity(strValue)
+    });
 
     switch (segs.length) {
         case 0:

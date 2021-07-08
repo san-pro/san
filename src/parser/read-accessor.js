@@ -8,7 +8,6 @@
  */
 
 var ExprType = require('./expr-type');
-var createAccessor = require('./create-accessor');
 var readIdent = require('./read-ident');
 var readTertiaryExpr = require('./read-tertiary-expr');
 
@@ -33,20 +32,20 @@ function readAccessor(walker) {
             };
     }
 
-    var result = createAccessor([
-        {
-            type: ExprType.STRING,
-            value: firstSeg
-        }
-    ]);
+    var result = {
+        type: ExprType.ACCESSOR,
+        paths: [
+            {type: ExprType.STRING, value: firstSeg}
+        ]
+    };
 
     /* eslint-disable no-constant-condition */
     accessorLoop: while (1) {
     /* eslint-enable no-constant-condition */
 
-        switch (walker.currentCode()) {
+        switch (walker.source.charCodeAt(walker.index)) {
             case 46: // .
-                walker.go(1);
+                walker.index++;
 
                 // ident as string
                 result.paths.push({
@@ -56,7 +55,7 @@ function readAccessor(walker) {
                 break;
 
             case 91: // [
-                walker.go(1);
+                walker.index++;
                 result.paths.push(readTertiaryExpr(walker));
                 walker.goUntil(93); // ]
                 break;

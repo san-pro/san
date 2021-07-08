@@ -9,7 +9,6 @@
 
 var ExprType = require('./expr-type');
 var readString = require('./read-string');
-var readNumber = require('./read-number');
 var readCall = require('./read-call');
 var readParenthesizedExpr = require('./read-parenthesized-expr');
 var readTertiaryExpr = require('./read-tertiary-expr');
@@ -82,12 +81,12 @@ function postUnaryExpr(expr, operator) {
 function readUnaryExpr(walker) {
     walker.goUntil();
 
-    var currentCode = walker.currentCode();
+    var currentCode = walker.source.charCodeAt(walker.index);
     switch (currentCode) {
         case 33: // !
         case 43: // +
         case 45: // -
-            walker.go(1);
+            walker.index++;
             return postUnaryExpr(readUnaryExpr(walker), currentCode);
 
         case 34: // "
@@ -104,20 +103,23 @@ function readUnaryExpr(walker) {
         case 55:
         case 56:
         case 57:
-            return readNumber(walker);
+            return {
+                type: ExprType.NUMBER,
+                value: +(walker.match(/[0-9]+(\.[0-9]+)?/g, 1)[0])
+            };
 
         case 40: // (
             return readParenthesizedExpr(walker);
 
         // array literal
         case 91: // [
-            walker.go(1);
+            walker.index++;
             var arrItems = [];
             while (!walker.goUntil(93)) { // ]
                 var item = {};
                 arrItems.push(item);
 
-                if (walker.currentCode() === 46 && walker.match(/\.\.\.\s*/g)) {
+                if (walker.source.charCodeAt(walker.index) === 46 && walker.match(/\.\.\.\s*/g)) {
                     item.spread = true;
                 }
 
@@ -132,14 +134,14 @@ function readUnaryExpr(walker) {
 
         // object literal
         case 123: // {
-            walker.go(1);
+            walker.index++;
             var objItems = [];
 
             while (!walker.goUntil(125)) { // }
                 var item = {};
                 objItems.push(item);
 
-                if (walker.currentCode() === 46 && walker.match(/\.\.\.\s*/g)) {
+                if (walker.source.charCodeAt(walker.index) === 46 && walker.match(/\.\.\.\s*/g)) {
                     item.spread = true;
                     item.expr = readTertiaryExpr(walker);
                 }
@@ -154,7 +156,7 @@ function readUnaryExpr(walker) {
                     if (item.name.type > 4) {
                         throw new Error(
                             '[SAN FATAL] unexpect object name: '
-                            + walker.cut(walkerIndexBeforeName, walker.index)
+                            + walker.source.slice(walkerIndexBeforeName, walker.index)
                         );
                     }
                     // #[end]

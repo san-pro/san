@@ -22,6 +22,10 @@ var AsyncComponent = require('./async-component');
  * @return {Node}
  */
 function createReverseNode(aNode, parent, scope, owner, reverseWalker, componentName) {
+    if (aNode.elem) {
+        return new Element(aNode, parent, scope, owner, componentName, reverseWalker);
+    }
+
     if (aNode.Clazz) {
         return new aNode.Clazz(aNode, parent, scope, owner, reverseWalker);
     }
@@ -46,7 +50,17 @@ function createReverseNode(aNode, parent, scope, owner, reverseWalker, component
             }, ComponentOrLoader);
     }
 
-    return new Element(aNode, parent, scope, owner, reverseWalker);
+    if (aNode.directives.is) {
+        switch (componentName) {
+            case 'fragment':
+            case 'template':
+                    return new TemplateNode(aNode, parent, scope, owner, reverseWalker);
+        }
+    }
+    else {
+        aNode.elem = true;
+    }
+    return new Element(aNode, parent, scope, owner, componentName, reverseWalker);
 }
 // #[end]
 
